@@ -170,11 +170,7 @@
       </div>
       <div class="interval">
         <label for="interval">Split every</label>
-        <select id="interval">
-          <option value="0.4">400 m</option>
-          <option value="1">1 km</option>
-          <option value="5">5 km</option>
-        </select>
+        <select id="interval"></select>
       </div>
       <table>
         <thead>
@@ -282,6 +278,11 @@ function fmtDist(km) {
 
 // ---- UI ----
 const STORE_KEY = 'pace-calculator-v1';
+const INTERVALS = [   // split interval choices: feeds both the <select> and load() validation
+  { km: 0.4, label: '400 m' },
+  { km: 1,   label: '1 km' },
+  { km: 5,   label: '5 km' }
+];
 const $ = id => document.getElementById(id);
 const els = {
   time: $('time'), timeHint: $('time-hint'), distHint: $('dist-hint'),
@@ -309,7 +310,7 @@ function load() {
     if (typeof saved.customValue === 'string') state.customValue = saved.customValue;
     if (saved.customUnit === 'm' || saved.customUnit === 'km') state.customUnit = saved.customUnit;
     if (typeof saved.negative === 'boolean') state.negative = saved.negative;
-    if ([0.4, 1, 5].includes(saved.interval)) state.interval = saved.interval;
+    if (INTERVALS.some(i => i.km === saved.interval)) state.interval = saved.interval;
   } catch (e) { /* storage unavailable or corrupt: use defaults */ }
 }
 
@@ -386,6 +387,7 @@ els.customUnit.addEventListener('change', () => { state.customUnit = els.customU
 els.negsplit.addEventListener('change', () => { state.negative = els.negsplit.checked; update(); });
 els.interval.addEventListener('change', () => { state.interval = Number(els.interval.value); update(); });
 
+INTERVALS.forEach(i => els.interval.add(new Option(i.label, String(i.km))));
 load();
 render();
 </script>
