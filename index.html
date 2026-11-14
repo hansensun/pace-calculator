@@ -100,6 +100,8 @@
   .row > :first-child { flex: 1; }
   .row > select { width: 90px; flex: none; }
   #custom-row { margin-top: 10px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; text-transform: none; letter-spacing: 0; font-size: 0.95rem; color: var(--text); font-weight: 500; cursor: pointer; }
+  .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
   .hint { color: var(--hint); font-size: 0.875rem; margin: 6px 0 0; min-height: 1.2em; }
   .hint:empty { display: none; }
   #results[hidden] { display: none; }
@@ -153,6 +155,10 @@
         </select>
       </div>
       <p class="hint" id="dist-hint" aria-live="polite"></p>
+    </div>
+
+    <div class="field">
+      <label class="check" for="negsplit"><input id="negsplit" type="checkbox"> Negative split (2nd half 3% faster)</label>
     </div>
   </section>
 
@@ -220,14 +226,30 @@ function parseCustomKm(value, unit) {
 
 function autoInterval(distKm) { return distKm >= 10 ? 5 : 1; }
 
-// Even pacing. Elapsed at each mark is pace * distance (no summed segments, so no drift).
-function buildSplits(totalSec, distKm, intervalKm) {
+const NEG_SPLIT = 0.03;   // second half is 3% faster than the first, on aggregate
+
+// Pace (relative to average pace = 1) falls linearly from a at the start to a - b at the finish.
+// First-half mean pace m1 = a - b/4, second-half mean m2 = a - 3b/4, with m2 = (1 - NEG_SPLIT) * m1
+// and the whole-race mean = 1, so the finish time is unchanged.
+const NEG_M1 = 2 / (2 - NEG_SPLIT);
+const NEG_M2 = NEG_M1 * (1 - NEG_SPLIT);
+const NEG_B = 2 * (NEG_M1 - NEG_M2);
+const NEG_A = NEG_M1 + NEG_B / 4;
+
+// Elapsed seconds at fraction f (0..1) of the distance: the integral of the pace curve.
+function elapsedAt(totalSec, f, negative) {
+  if (!negative) return totalSec * f;
+  return totalSec * (NEG_A * f - NEG_B * f * f / 2);
+}
+
+// Elapsed at each mark is computed from distance (no summed segments, so no drift).
+function buildSplits(totalSec, distKm, intervalKm, negative) {
   const distM = distKm * 1000;
   const intM = Math.round(intervalKm * 1000);
   const rows = [];
   let prev = 0;
   for (let k = 1; k * intM < distM - 1e-6; k++) {
-    const elapsed = totalSec * (k * intM / distM);
+    const elapsed = elapsedAt(totalSec, k * intM / distM, negative);
     rows.push({ km: k * intM / 1000, elapsed, segment: elapsed - prev, finish: false });
     prev = elapsed;
   }
@@ -266,7 +288,7 @@ const els = {
   buttons: Array.from(document.querySelectorAll('#dist-buttons button')),
   customRow: $('custom-row'), customValue: $('custom-value'), customUnit: $('custom-unit'),
   results: $('results'), paceValue: $('pace-value'), paceSub: $('pace-sub'),
-  interval: $('interval'), splits: $('splits')
+  interval: $('interval'), negsplit: $('negsplit'), splits: $('splits')
 };
 
 const state = {
@@ -274,7 +296,8 @@ const state = {
   time: '',
   customValue: '',
   customUnit: 'm',
-  interval: null   // null = automatic
+  interval: null,  // null = automatic
+  negative: false
 };
 
 function load() {
@@ -285,6 +308,7 @@ function load() {
     if (typeof saved.time === 'string') state.time = saved.time;
     if (typeof saved.customValue === 'string') state.customValue = saved.customValue;
     if (saved.customUnit === 'm' || saved.customUnit === 'km') state.customUnit = saved.customUnit;
+    if (typeof saved.negative === 'boolean') state.negative = saved.negative;
     if ([0.4, 1, 5].includes(saved.interval)) state.interval = saved.interval;
   } catch (e) { /* storage unavailable or corrupt: use defaults */ }
 }
@@ -300,6 +324,7 @@ function render() {
   if (els.time.value !== state.time) els.time.value = state.time;
   if (els.customValue.value !== state.customValue) els.customValue.value = state.customValue;
   els.customUnit.value = state.customUnit;
+  els.negsplit.checked = state.negative;
 
   // Time
   const totalSec = parseTime(state.time);
@@ -331,8 +356,13 @@ function render() {
 
   els.paceValue.textContent = fmtTime(totalSec / distKm, tenths, false);
   els.paceSub.textContent = distLabel + ' in ' + fmtTime(totalSec, tenths, hours);
+  if (state.negative) {
+    const avg = totalSec / distKm;
+    els.paceSub.textContent += ' · 1st half ' + fmtTime(avg * NEG_M1, tenths, false) +
+      ', 2nd half ' + fmtTime(avg * NEG_M2, tenths, false) + ' /km';
+  }
 
-  els.splits.innerHTML = buildSplits(totalSec, distKm, interval).map(r =>
+  els.splits.innerHTML = buildSplits(totalSec, distKm, interval, state.negative).map(r =>
     '<tr' + (r.finish ? ' class="finish"' : '') + '>' +
     '<th scope="row">' + fmtDist(r.km) + (r.finish ? '<span class="tag">Finish</span>' : '') + '</th>' +
     '<td>' + fmtTime(r.elapsed, tenths, hours) + '</td>' +
@@ -353,6 +383,7 @@ els.buttons.forEach(b => b.addEventListener('click', () => {
 }));
 els.customValue.addEventListener('input', () => { state.customValue = els.customValue.value; update(); });
 els.customUnit.addEventListener('change', () => { state.customUnit = els.customUnit.value; update(); });
+els.negsplit.addEventListener('change', () => { state.negative = els.negsplit.checked; update(); });
 els.interval.addEventListener('change', () => { state.interval = Number(els.interval.value); update(); });
 
 load();
