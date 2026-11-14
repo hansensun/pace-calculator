@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Pace Calculator</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #15181d;
+    --muted: #667085;
+    --line: #e4e7ec;
+    --accent: #1a6cf0;
+    --accent-text: #ffffff;
+    --accent-soft: #e8f0fe;
+    --hint: #b42318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216;
+      --card: #181c22;
+      --text: #eceff4;
+      --muted: #98a2b3;
+      --line: #2a303a;
+      --accent: #5b9bff;
+      --accent-text: #0b1220;
+      --accent-soft: #1d2a42;
+      --hint: #f97066;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 16px; font-weight: 650; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  label, .label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .field + .field { margin-top: 16px; }
+  input[type="text"], input[type="number"], select {
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    width: 100%;
+    min-height: 44px;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  #time { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+  .dist-buttons {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+  .dist-buttons button {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 2px;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .dist-buttons button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+  .row { display: flex; gap: 8px; }
+  .row > :first-child { flex: 1; }
+  .row > select { width: 90px; flex: none; }
+  #custom-row { margin-top: 10px; }
+  .hint { color: var(--hint); font-size: 0.875rem; margin: 6px 0 0; min-height: 1.2em; }
+  .hint:empty { display: none; }
+  #results[hidden] { display: none; }
+  .pace { text-align: center; padding: 4px 0 14px; }
+  .pace .big { font-size: 2.6rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .pace .big small { font-size: 1rem; font-weight: 500; color: var(--muted); }
+  .pace .sub { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+  .interval { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+  .interval label { margin: 0; white-space: nowrap; }
+  .interval select { width: auto; min-height: 38px; padding: 6px 10px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 9px 6px; text-align: right; border-top: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  thead th {
+    border-top: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  tbody th { font-weight: 500; }
+  tr.finish th, tr.finish td { font-weight: 700; background: var(--accent-soft); }
+  tr.finish .tag { font-size: 0.7rem; font-weight: 600; color: var(--accent); margin-left: 6px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pace Calculator</h1>
+
+  <section class="card" aria-label="Inputs">
+    <div class="field">
+      <label for="time">Target finish time</label>
+      <input id="time" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="3:45:00" aria-describedby="time-hint">
+      <p class="hint" id="time-hint" aria-live="polite"></p>
+    </div>
+
+    <div class="field">
+      <span class="label" id="dist-label">Distance</span>
+      <div class="dist-buttons" role="group" aria-labelledby="dist-label" id="dist-buttons">
+        <button type="button" data-dist="5k" aria-pressed="false">5K</button>
+        <button type="button" data-dist="10k" aria-pressed="false">10K</button>
+        <button type="button" data-dist="half" aria-pressed="false">Half</button>
+        <button type="button" data-dist="marathon" aria-pressed="true">Marathon</button>
+        <button type="button" data-dist="custom" aria-pressed="false">Custom</button>
+      </div>
+      <div class="row" id="custom-row" hidden>
+        <input id="custom-value" type="number" inputmode="decimal" step="any" min="0" placeholder="1500" aria-label="Custom distance">
+        <select id="custom-unit" aria-label="Custom distance unit">
+          <option value="m">m</option>
+          <option value="km">km</option>
+        </select>
+      </div>
+      <p class="hint" id="dist-hint" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <section id="results" hidden aria-label="Results">
+    <div class="card">
+      <div class="pace">
+        <div class="big"><span id="pace-value"></span> <small>/km</small></div>
+        <div class="sub" id="pace-sub"></div>
+      </div>
+      <div class="interval">
+        <label for="interval">Split every</label>
+        <select id="interval">
+          <option value="0.4">400 m</option>
+          <option value="1">1 km</option>
+          <option value="5">5 km</option>
+        </select>
+      </div>
+      <table>
+        <thead>
+          <tr><th scope="col">Distance</th><th scope="col">Elapsed</th><th scope="col">Segment</th></tr>
+        </thead>
+        <tbody id="splits"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+// <core>
+const PRESETS = {
+  '5k':       { label: '5K',       km: 5 },
+  '10k':      { label: '10K',      km: 10 },
+  'half':     { label: 'Half',     km: 21.0975 },
+  'marathon': { label: 'Marathon', km: 42.195 }
+};
+const MIN_KM = 0.1;   // 100 m
+const MAX_KM = 200;
+
+// "h:mm:ss" or "mm:ss", optional decimal seconds. Returns seconds, or null if invalid.
+function parseTime(str) {
+  const s = String(str).trim();
+  let h = 0, m, sec, mt;
+  if ((mt = /^(\d{1,3}):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/.exec(s))) {
+    h = +mt[1]; m = +mt[2]; sec = +mt[3];
+    if (m >= 60) return null;
+  } else if ((mt = /^(\d{1,4}):(\d{1,2}(?:\.\d+)?)$/.exec(s))) {
+    m = +mt[1]; sec = +mt[2];
+  } else {
+    return null;
+  }
+  if (sec >= 60) return null;
+  const total = h * 3600 + m * 60 + sec;
+  return total > 0 ? total : null;
+}
+
+// Custom distance -> km, or null if blank/invalid/out of range.
+function parseCustomKm(value, unit) {
+  const t = String(value).trim();
+  if (t === '') return null;
+  const v = Number(t);
+  if (!isFinite(v) || v <= 0) return null;
+  const km = unit === 'm' ? v / 1000 : v;
+  return (km >= MIN_KM - 1e-9 && km <= MAX_KM + 1e-9) ? km : null;
+}
+
+function autoInterval(distKm) { return distKm >= 10 ? 5 : 1; }
+
+// Even pacing. Elapsed at each mark is pace * distance (no summed segments, so no drift).
+function buildSplits(totalSec, distKm, intervalKm) {
+  const distM = distKm * 1000;
+  const intM = Math.round(intervalKm * 1000);
+  const rows = [];
+  let prev = 0;
+  for (let k = 1; k * intM < distM - 1e-6; k++) {
+    const elapsed = totalSec * (k * intM / distM);
+    rows.push({ km: k * intM / 1000, elapsed, segment: elapsed - prev, finish: false });
+    prev = elapsed;
+  }
+  rows.push({ km: distKm, elapsed: totalSec, segment: totalSec - prev, finish: true });
+  return rows;
+}
+
+function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+// Rounds first, then splits into parts, so 59.96 s never prints as "0:60".
+function fmtTime(sec, tenths, hours) {
+  const unit = tenths ? 10 : 1;
+  const t = Math.round(sec * unit + 1e-9);
+  const whole = Math.floor(t / unit);
+  const frac = tenths ? '.' + (t % 10) : '';
+  const s = whole % 60;
+  if (hours) {
+    const h = Math.floor(whole / 3600);
+    const m = Math.floor((whole % 3600) / 60);
+    return h + ':' + pad2(m) + ':' + pad2(s) + frac;
+  }
+  return Math.floor(whole / 60) + ':' + pad2(s) + frac;
+}
+
+function fmtDist(km) {
+  if (km < 1) return Math.round(km * 1000) + ' m';
+  return parseFloat(km.toFixed(4)) + ' km';
+}
+// </core>
+
+// ---- UI ----
+const STORE_KEY = 'pace-calculator-v1';
+const $ = id => document.getElementById(id);
+const els = {
+  time: $('time'), timeHint: $('time-hint'), distHint: $('dist-hint'),
+  buttons: Array.from(document.querySelectorAll('#dist-buttons button')),
+  customRow: $('custom-row'), customValue: $('custom-value'), customUnit: $('custom-unit'),
+  results: $('results'), paceValue: $('pace-value'), paceSub: $('pace-sub'),
+  interval: $('interval'), splits: $('splits')
+};
+
+const state = {
+  dist: 'marathon',
+  time: '',
+  customValue: '',
+  customUnit: 'm',
+  interval: null   // null = automatic
+};
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (!saved || typeof saved !== 'object') return;
+    if (saved.dist === 'custom' || PRESETS[saved.dist]) state.dist = saved.dist;
+    if (typeof saved.time === 'string') state.time = saved.time;
+    if (typeof saved.customValue === 'string') state.customValue = saved.customValue;
+    if (saved.customUnit === 'm' || saved.customUnit === 'km') state.customUnit = saved.customUnit;
+    if ([0.4, 1, 5].includes(saved.interval)) state.interval = saved.interval;
+  } catch (e) { /* storage unavailable or corrupt: use defaults */ }
+}
+
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+}
+
+function render() {
+  // Controls reflect state
+  els.buttons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dist === state.dist)));
+  els.customRow.hidden = state.dist !== 'custom';
+  if (els.time.value !== state.time) els.time.value = state.time;
+  if (els.customValue.value !== state.customValue) els.customValue.value = state.customValue;
+  els.customUnit.value = state.customUnit;
+
+  // Time
+  const totalSec = parseTime(state.time);
+  els.timeHint.textContent = totalSec !== null ? ''
+    : state.time.trim() === '' ? 'Enter a finish time, e.g. 3:45:00 or 22:30.'
+    : 'Use h:mm:ss or mm:ss, e.g. 3:45:00 or 22:30.';
+
+  // Distance
+  let distKm = null, distLabel = '';
+  if (state.dist === 'custom') {
+    distKm = parseCustomKm(state.customValue, state.customUnit);
+    els.distHint.textContent = distKm !== null ? '' : 'Enter a distance between 100 m and 200 km.';
+    if (distKm !== null) distLabel = fmtDist(distKm);
+  } else {
+    distKm = PRESETS[state.dist].km;
+    els.distHint.textContent = '';
+    distLabel = PRESETS[state.dist].label + ' · ' + fmtDist(distKm);
+  }
+
+  if (totalSec === null || distKm === null) {
+    els.results.hidden = true;
+    return;
+  }
+
+  const tenths = totalSec < 600;
+  const hours = totalSec >= 3600;
+  const interval = state.interval !== null ? state.interval : autoInterval(distKm);
+  els.interval.value = String(interval);
+
+  els.paceValue.textContent = fmtTime(totalSec / distKm, tenths, false);
+  els.paceSub.textContent = distLabel + ' in ' + fmtTime(totalSec, tenths, hours);
+
+  els.splits.innerHTML = buildSplits(totalSec, distKm, interval).map(r =>
+    '<tr' + (r.finish ? ' class="finish"' : '') + '>' +
+    '<th scope="row">' + fmtDist(r.km) + (r.finish ? '<span class="tag">Finish</span>' : '') + '</th>' +
+    '<td>' + fmtTime(r.elapsed, tenths, hours) + '</td>' +
+    '<td>' + fmtTime(r.segment, tenths, hours) + '</td></tr>'
+  ).join('');
+  els.results.hidden = false;
+}
+
+function update() { save(); render(); }
+
+els.time.addEventListener('input', () => { state.time = els.time.value; update(); });
+els.buttons.forEach(b => b.addEventListener('click', () => {
+  if (state.dist !== b.dataset.dist) {
+    state.dist = b.dataset.dist;
+    state.interval = null;   // a new distance goes back to its automatic split interval
+  }
+  update();
+}));
+els.customValue.addEventListener('input', () => { state.customValue = els.customValue.value; update(); });
+els.customUnit.addEventListener('change', () => { state.customUnit = els.customUnit.value; update(); });
+els.interval.addEventListener('change', () => { state.interval = Number(els.interval.value); update(); });
+
+load();
+render();
+</script>
+</body>
+</html>
